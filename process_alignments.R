@@ -1,15 +1,17 @@
 library(dplyr)
 library(GenomicRanges)
 
+# Read in the result from align_HMM_hits.R
 o <- readRDS('HMM_hit_genome_alignments.rds')
 R1_blat <- o$R1
 R2_blat <- o$R2
 rm(o)
 
+
 # Group blat results by read id and identify the hit with the highest match score.
 # Include other hits that are within {maxMatchDistFromLeader} of the highest score.
 # This will often return a single result which can be considered the proper alignments. 
-# For each hit, look for correponding R2 hit within 10000 NT.
+# For each hit, look for corresponding R2 hit within 10000 NT.
 #--------------------------------------------------------------------------------------------------
 
 maxMatchDistFromLeader <- 3
@@ -44,15 +46,18 @@ r <- distinct(bind_rows(lapply(split(R1_blat, R1_blat$qName), function(x){
          hits = posids, r_supported = any(m$r_supported))
 })))
 
+
+# Summarize each hit.
 o <- bind_rows(lapply(split(r, paste(r$sample, r$hits)), function(x){
-  tibble(sample = x$sample[1], 
-         reads = n_distinct(x$targetName),
-         hits = x$hits[1], 
-         R2_supported = x$r_supported[1], 
-         cellBarCodes = n_distinct(x$cellBarCode))
+       tibble(sample = x$sample[1], 
+              reads = n_distinct(x$targetName),
+              hits = x$hits[1], 
+              R2_supported = x$r_supported[1], 
+              cellBarCodes = n_distinct(x$cellBarCode))
 }))
 
 # Remove known artifacts.
+# These two positions have homology to the vector plasmid following the 5' and 3' U5 sequence.
 o <- o[! o$hits %in% c('chr3+17402188','chr6-131054616'),]
 
 openxlsx::write.xlsx(r, 'readHits.xlsx')

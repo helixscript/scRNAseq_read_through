@@ -2,8 +2,11 @@ library(dplyr)
 library(ShortRead)
 source('lib.R')
 
+# Read in 10x allowed cell bar code list.
 w <- readLines('cellRangerBarcodeWhiteList.txt')
 
+
+# Collate the results from run_FASTQ_hmm.R
 r <- bind_rows(lapply(list.files('output', pattern = '^result$', recursive = TRUE, full.names = TRUE), function(x){
        o <- readr::read_tsv(x)
        o$sample <- unlist(strsplit(x, '/'))[2]
@@ -41,4 +44,6 @@ for(x in unique(b$cellBarcode)){
 b <- b[! is.na(b$cellBarcode),]
 r2 <- bind_rows(a, b)
 
+
+# Write result.
 readr::write_tsv(r2, 'filtered_HMM_hits.tsv')
