@@ -189,8 +189,9 @@ nearestGenes$posid <- paste0(nearestGenes$chromosome, nearestGenes$strand, neare
 u <- left_join(u, distinct(select(nearestGenes, posid, nearestGene)), by = 'posid')
 
 
+# Identify genes with candidate hits nearby that have HMM hits near the ends of the HMM.
 s <- group_by(subset(u, hmmEnd >= 95), nearestGene) %>%
-  summarise(nCellBarcodes = n_distinct(cellBarcode)) %>%
-  ungroup() %>%
-  arrange(desc(nCellBarcodes))
+     summarise(nCellBarcodes = n_distinct(cellBarcode)) %>%
+     ungroup() %>%
+     arrange(desc(nCellBarcodes))
 
