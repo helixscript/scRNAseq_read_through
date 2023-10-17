@@ -15,9 +15,10 @@ parseBLAToutput <- function(f){
   b$percentQueryCoverage <- (b$queryWidth/b$qSize)*100
   b$qStarts              <- as.character(b$qStarts)
   b$tStarts              <- as.character(b$tStarts)
+  b$tStart               <- as.integer(b$tStart)
+  b$tEnd                 <- as.integer(b$tEnd)
   b
 }
-
 
 
 nearestGene <- function(posids, genes, exons, CPUs = 20){
@@ -108,72 +109,4 @@ nearestGene <- function(posids, genes, exons, CPUs = 20){
   if('n' %in% names(r)) r$n <- NULL
   if('exon' %in% names(r)) r$exon <- NULL
   r
-}
-
-
-
-alignChunk <- function(f){
-  library(dplyr)
-  library(ShortRead)
-  source(file.path(analysisDir, 'lib.R'))
-  message(f)
-  
-  t2 <- tempfile(tmpdir = file.path(analysisDir, 'tmp'))
-  
-  # Read in sequence data chunk, quality trim to Q20, export as fasta for blat.
-  # gDNA are expected to start at position 40 after cell bar code + transcript code + TSO.
-  # reads <- trimTails(readFastq(f), 2, '5', 5)
-  
-  reads <- readFastq(f)
-  
-  if(length(reads) == 0) return(tibble())
-  
-  reads@id <- BStringSet(sub('\\s.+$', '', reads@id))
-  
-  barCodes <- tibble(readID = as.character(reads@id), 
-                     cellBarCode = as.character(narrow(reads, 1, 16)@sread),
-                     transcriptBarCode = as.character(narrow(reads, 17, 26)@sread))  
-  
-  reads <- narrow(reads, 41, width(reads))
-  
-  o <- reads@sread
-  names(o) <- reads@id
-  
-  # Process all reads so that reads in earlier analysis are not lost.
-  rm(reads)
-  gc()
-  
-  writeXStringSet(o, paste0(t2, '.fasta'))
-  
-  system(paste('blat -stepSize=5 -repMatch=5000 -minScore=0 -minIdentity=0 -out=psl -noHead', 
-               paste0(t, '.2bit'), paste0(t2, '.fasta'), paste0(t2, '.psl')))
-  
-  b <- parseBLAToutput(paste0(t2, '.psl'))
-  
-  if(nrow(b) > 0){
-    b <- dplyr::filter(b, alignmentPercentID >= 97 & matches >= 20 & 
-                         tNumInsert <= 1 & qNumInsert <= 1 & tBaseInsert <= 1 & qBaseInsert <= 1) %>%
-      dplyr::mutate(sample = h$sample[1], hit = h$hits[1])
-    
-    if(nrow(b) > 0){
-      
-      b <- left_join(b, barCodes, by = c('qName' = 'readID'))
-      b <- distinct(select(b, transcriptBarCode, cellBarCode, tName, strand, qStart, qEnd, tStart, tEnd, qName))
-      b$tName <- h$chromosome
-      b$tStart <- b$tStart + (h$position - 1000)
-      b$tEnd <- b$tEnd + (h$position - 1000)
-      b <- left_join(b, tibble(qName = names(o), R1_readSeq = as.character(o)), by = 'qName')
-      b$sample <- h$sample
-      b$hit <- h$hits
-    }
-  }
-  
-  rm(o, barCodes)
-  gc()
-  
-  invisible(file.remove(list.files(file.path(analysisDir, 'tmp'), 
-                                   recursive = TRUE, 
-                                   pattern = rev(unlist(strsplit(t2, '/')))[1], 
-                                   full.names = TRUE)))
-  return(b)
 }
