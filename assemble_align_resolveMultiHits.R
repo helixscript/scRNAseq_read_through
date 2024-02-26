@@ -4,13 +4,12 @@ library(ggplot2)
 source('lib.R')
 
 alignmentMinSeqId <- 97
-refGenome <- '/home/ubuntu/AAVengeR/data/referenceGenomes/hg38.2bit'
+refGenome <- '/home/ubuntu/AAVengeR/data/referenceGenomes/blat/hg38.2bit'
 TUs   <- '/home/ubuntu/AAVengeR/data/genomeAnnotations/hg38.TUs.rds'
 exons <- '/home/ubuntu/AAVengeR/data/genomeAnnotations/hg38.exons.rds'
 
 # Read in 10x allowed cell bar code list.
 w <- readLines('cellRangerBarcodeWhiteList.txt')
-
 
 # Collate the results from run_FASTQ_hmm.R
 r <- bind_rows(lapply(list.files('output', pattern = '^result$', recursive = TRUE, full.names = TRUE), function(x){
@@ -122,7 +121,7 @@ R1_blat <- distinct(select(R1_blat, matches, strand, qName, qStart, qEnd, tName,
 R2_blat <- distinct(select(R2_blat, matches, strand, qName, qStart, qEnd, tName, tStart, tEnd, sample, cellBarcode))
 
 # Use the R2 alignments to resolve instances when R1 aligns to multiple locations.
-# Use GenomicRanges::reduce() with a large margin to determin if reads align near one another.
+# Use GenomicRanges::reduce() with a large margin to determine if reads align near one another.
 
 reconcile_alignments <- function(R1, R2){
   R2$strand <- ifelse(R2$strand == '+', '-', '+')  # Flip strands to allow merging of sites with reduce().
@@ -176,7 +175,7 @@ u <- z[! duplicated(z$qName),]
 
 
 # Remove known artifacts that arise from reading out of U5 into vector or vector-plasmid.
-# These positions were identified from earlier versions of this analyis from positions that 
+# These positions were identified from earlier versions of this analysis from positions that 
 # spanned multiple subjects.
 a1 <- subset(u, tName == 'chr3' & tStart >= 17402188-1000 & tStart <= 17402188+1000)$qName
 a2 <- subset(u, tName == 'chr6' & tStart >= 131054616-1000 & tStart <= 131054616+1000)$qName
@@ -190,8 +189,8 @@ u <- left_join(u, distinct(select(nearestGenes, posid, nearestGene)), by = 'posi
 
 
 # Identify genes with candidate hits nearby that have HMM hits near the ends of the HMM.
-s <- group_by(subset(u, hmmEnd >= 95), nearestGene) %>%
-     summarise(nCellBarcodes = n_distinct(cellBarcode)) %>%
+s <- group_by(subset(u, hmmEnd >= 95), nearestGene, sample, posid) %>%
+     summarise(nCellBarcodes = n_distinct(cellBarcode), cellBarCodes = paste0(unique(cellBarcode), collapse = ';')) %>%
      ungroup() %>%
-     arrange(desc(nCellBarcodes))
-
+     arrange(desc(nCellBarcodes)) %>% filter(nearestGene != 'OSBP')
+openxlsx::write.xlsx(s, 's.xlsx')
